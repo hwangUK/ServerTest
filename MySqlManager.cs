@@ -7,6 +7,7 @@ namespace MyServer
 {
     class MySqlManager
     {
+        static string str_dataBuffer = "";
         static string str_con =
             "Server=localhost;Database=test;Uid=root;Pwd=12159913";
 
@@ -19,10 +20,10 @@ namespace MyServer
                 sql_con.Open();
                 Console.WriteLine("MySql Connected!");
 
-                string str_cmd = "INSERT INTO login (name, password) " +
+                string query_insert = "INSERT INTO userdb (name, password) " +
                             "VALUES ('" + name + "','" + pw + "')";
 
-                MySqlCommand cmd = new MySqlCommand(str_cmd, sql_con);
+                MySqlCommand cmd = new MySqlCommand(query_insert, sql_con);
                 cmd.ExecuteNonQuery();
                 sql_con.Close();
                 Console.WriteLine("MySql Disconnected!");
@@ -38,43 +39,36 @@ namespace MyServer
             }
         }
 
-        public bool Mysql_Find_ID()
+        public string Mysql_CheckLogin_Return_Userdata(string ID, string PW)
         {
-            try
+            sql_con.Open();
+            string query_select = "SELECT name,password,data FROM userdb WHERE name='" + ID + "'";
+            MySqlCommand cmd = new MySqlCommand(query_select, sql_con);
+            //MySqlDataReader를 통하여 sql데이터 가져온 후 저장하기
+            MySqlDataReader reader = cmd.ExecuteReader();
+            reader.Read();
+            if (reader.GetString(0) == ID && reader.GetString(1) == PW)
             {
-                DataSet ds = new DataSet();
-
-                //MySqlDataAdapter 클래스를 이용하여 비연결 모드로 데이타 가져오기
-                string sql = "SELECT * FROM login";
-                MySqlDataAdapter adpt = new MySqlDataAdapter(sql, sql_con);
-                adpt.Fill(ds, "login");
-                if (ds.Tables.Count > 0)
-                {
-                    foreach (DataRow r in ds.Tables[0].Rows)
-                    {
-                        Console.WriteLine(r["name"]);
-                        // return r["name"];
-                    }
-                }
-                return true;
+                Console.WriteLine("비밀번호일치");
+                string str = "Data;"+reader. GetString(2);
+                reader.Close();
+                sql_con.Close();
+                return str;
             }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.StackTrace);
-                return false;
-            }
-
+            Console.WriteLine("아이디,비밀번호 오류");
+            reader.Close();
+            sql_con.Close();
+            return "false";
         }
 
-        public void CheckLogin()
+        public void Mysql_Update_UserData(string ID, string data)
         {
-            if (Mysql_Find_ID())
-            {
-                //로그인성공
-                // 해당 json 데이터 클라에게 전송
-            }
-            else //실패
-                ;
+            sql_con.Open();
+            string query_update = "UPDATE userdb SET data ='" +data+"' WHERE name='"+ID+"'";
+            MySqlCommand cmd = new MySqlCommand(query_update, sql_con);
+            cmd.ExecuteNonQuery();
+            sql_con.Close();
+            Console.WriteLine("MySql 유저 데이터 업데이트 완료: "+ID+" : "+data);
         }
     }
 }
