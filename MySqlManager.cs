@@ -1,7 +1,5 @@
-﻿using System;
-
-using MySql.Data.MySqlClient;
-using System.Data;
+﻿using MySql.Data.MySqlClient;
+using System;
 
 namespace MyServer
 {
@@ -18,7 +16,7 @@ namespace MyServer
             try
             {
                 sql_con.Open();
-                Console.WriteLine("MySql Connected!");
+                Console.WriteLine("MySQL 접속!");
 
                 string query_insert = "INSERT INTO userdb (name, password) " +
                             "VALUES ('" + name + "','" + pw + "')";
@@ -26,12 +24,12 @@ namespace MyServer
                 MySqlCommand cmd = new MySqlCommand(query_insert, sql_con);
                 cmd.ExecuteNonQuery();
                 sql_con.Close();
-                Console.WriteLine("MySql Disconnected!");
+                Console.WriteLine("MySql 새로운 유저 저장 완료!");
                 return true;
             }
             catch (Exception e)
             {
-                Console.WriteLine("Already Exist ID");
+                Console.WriteLine("이미 있는 아이디");
 
                 Console.WriteLine(e.StackTrace);
                 sql_con.Close();
@@ -47,17 +45,32 @@ namespace MyServer
             //MySqlDataReader를 통하여 sql데이터 가져온 후 저장하기
             MySqlDataReader reader = cmd.ExecuteReader();
             reader.Read();
-            if (reader.GetString(0) == ID && reader.GetString(1) == PW)
+            try
             {
-                Console.WriteLine("비밀번호일치");
-                string str = "Data;"+reader. GetString(2);
+                if (reader.GetString(0) == ID && reader.GetString(1) == PW)
+                {
+                    Console.WriteLine("비밀번호일치");
+                    string str;
+                    
+                    str = reader.GetString(2);
+                    reader.Close();
+                    sql_con.Close();
+                    return str;
+                   
+                }
+                else
+                {
+                    reader.Close();
+                    sql_con.Close();
+                    
+                }
+            }
+            finally
+            {
+                Console.WriteLine("아이디,비밀번호 오류");
                 reader.Close();
                 sql_con.Close();
-                return str;
-            }
-            Console.WriteLine("아이디,비밀번호 오류");
-            reader.Close();
-            sql_con.Close();
+            }            
             return "false";
         }
 
