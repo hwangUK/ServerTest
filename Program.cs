@@ -14,24 +14,22 @@ namespace MyServer
         static MySqlManager mysql = new MySqlManager();
         static Socket listening_ServerSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         static List<Socket> clientSocketList = new List<Socket>();
-        //static ManualResetEvent allDone = new ManualResetEvent(false);
 
         static void Main(string[] args)
         {
             Console.Title = "UkHwangServer";
             //서버 Listen 쓰레드
-            Thread th_Listen = new Thread(new ThreadStart(Socket_Listen));
+            Thread th_Listen = new Thread(new ThreadStart(ThreadFunc_Socket_Listen));
             th_Listen.Start();
-            //Socket_Listen();
         }
 
-        static void Socket_Listen()
+        static void ThreadFunc_Socket_Listen()
         {
             Console.WriteLine("이것은 서버!");
             listening_ServerSocket.Bind(new IPEndPoint(IPAddress.Any, 9913));
             listening_ServerSocket.Listen(5);
-            Console.WriteLine("접속을 기다리는중...");
 
+            Console.WriteLine("접속을 기다리는중...");
             listening_ServerSocket.BeginAccept(new AsyncCallback(AcceptFromClient), null);
   
             Console.ReadLine();
@@ -39,12 +37,12 @@ namespace MyServer
 
         static public void AcceptFromClient(IAsyncResult ar)
         {
-            Thread th = new Thread(new ParameterizedThreadStart(th_acc));
-            th.IsBackground = true;
-            th.Start(ar);
+            Thread th_Accept = new Thread(new ParameterizedThreadStart(ThreadFunc_Accept));
+            th_Accept.IsBackground = true;
+            th_Accept.Start(ar);
         }
 
-        static void th_acc(object Ar)
+        static void ThreadFunc_Accept(object Ar)
         {
             IAsyncResult ar = (IAsyncResult)Ar;
             Socket newSock = listening_ServerSocket.EndAccept(ar);
@@ -54,22 +52,21 @@ namespace MyServer
             listening_ServerSocket.BeginAccept(new AsyncCallback(AcceptFromClient), null);
 
             newSock.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None,
-                               new AsyncCallback(Receive_Callback), newSock);
+                               new AsyncCallback(Callback_Receive), newSock);            
         }
 
-        static void Receive_Callback(IAsyncResult ar)
+        static void Callback_Receive(IAsyncResult ar)
         {
-            Thread th = new Thread(new ParameterizedThreadStart(th_re));
-            th.IsBackground = true;
-            th.Start(ar);
+            Thread th_Receive = new Thread(new ParameterizedThreadStart(ThreadFunc_Receive));
+            th_Receive.IsBackground = true;
+            th_Receive.Start(ar);
         }
 
-        static void th_re(object Ar)
+        static void ThreadFunc_Receive(object Ar)
         {
             IAsyncResult ar = (IAsyncResult)Ar;
             Socket newSocket_receive = (Socket)ar.AsyncState;
             int inputLength = newSocket_receive.EndReceive(ar);
-            //byte[] dataBuffer = new byte[inputLength];
 
             if (inputLength > 0)
             {
@@ -80,20 +77,19 @@ namespace MyServer
                 {
                     try
                     {
-                        //SQL에 삽입 성공하면 
-                        //클라에게 전송 계정생성 결과
-                        if (mysql.Mysql_Insert_NewID(token[1], token[2]))
+                        //SQL에 삽입 성공하면 = 클라에게 전송 계정생성 결과
+                        if (mysql.Mysql_InsertNewID(token[1], token[2]))
                         {
-                            SendToClient(ref newSocket_receive, "NewAccount;true;");
+                            SendToClient(newSocket_receive, "NewAccount;true;");
                         }
                         else
                         {
-                            SendToClient(ref newSocket_receive, "NewAccount;false;");
+                            SendToClient(newSocket_receive, "NewAccount;false;");
                         }
                     }
                     catch
                     {
-                        SendToClient(ref newSocket_receive, "NewAccount;false;");
+                        SendToClient(newSocket_receive, "NewAccount;false;");
                     }
                 }
                 else if (token[0] == "Login")
@@ -101,15 +97,14 @@ namespace MyServer
                     string userData = "";
                     //SQL에서 아이디와 비밀번호 대조 결과값과 데이터 전송
                     //클라에게 전송 로그인성공여부 및 데이터
-                    if ((userData = mysql.Mysql_CheckLogin_Return_Userdata(token[1], token[2])) != "false")
+                    if ((userData = mysql.Mysql_CheckLogin_ReturnUserdata(token[1], token[2])) != "false")
                     {
-                        SendToClient(ref newSocket_receive, "Login;true;" + token[1] + ";"+ userData + ";");
+                        SendToClient(newSocket_receive, "Login;true;" + token[1] + ";"+ userData + ";");
                     }
                     else
                     {
-                        SendToClient(ref newSocket_receive, "Login;false;");
+                        SendToClient(newSocket_receive, "Login;false;");
                     }
-
                 }
                 else if (token[0] == "Data")
                 {
@@ -117,28 +112,24 @@ namespace MyServer
                     try
                     {
                         mysql.Mysql_Update_UserData(token[1], token[2]);
-                        SendToClient(ref newSocket_receive, "Data;" + token[2] + ";");
+                        SendToClient(newSocket_receive, "Data;" + token[2] + ";");
                     }
                     catch (Exception e)
                     {
                         Console.WriteLine("예외: " + e.ToString());
                     }
-                }
-
-                newSocket_receive.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None,
-                             new AsyncCallback(Receive_Callback), newSocket_receive);
+                }                
+                newSocket_receive.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, new AsyncCallback(Callback_Receive), newSocket_receive);
             }
         }
-
-        static public void SendToClient(ref Socket soc, string data)
+        static public void SendToClient(Socket socket, string sendStream)
         {
-            byte[] transferStr = Encoding.Default.GetBytes(data);
-            soc.BeginSend(transferStr, 0, transferStr.Length, SocketFlags.None, //0부터transferStr.Length까지
-                         new AsyncCallback(Send_Callback_Server), soc);
+            byte[] transferStr = Encoding.Default.GetBytes(sendStream);
+            socket.BeginSend(transferStr, 0, transferStr.Length, SocketFlags.None, //0부터transferStr.Length까지
+                         new AsyncCallback(Callback_SendToServer), socket);
         }
-
         // 비동기 클라전송 소켓 콜백함수
-        static void Send_Callback_Server(IAsyncResult ar)
+        static void Callback_SendToServer(IAsyncResult ar)
         {
             Socket newSock_send = (Socket)ar.AsyncState;
             newSock_send.EndSend(ar);
